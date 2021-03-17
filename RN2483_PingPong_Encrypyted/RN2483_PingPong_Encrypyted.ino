@@ -1,8 +1,12 @@
 #include "AES.h"
 
-#define loraSerial Serial2
+#define loraSerial              Serial2
+#define usbSerial               SerialUSB
 
-#define padedLength(bytes) bytes + N_BLOCK - bytes % N_BLOCK
+#define padedLength(bytes)      bytes + N_BLOCK - bytes % N_BLOCK
+    
+#define payloadLength           10 //bytes
+
 
 AES aes ;
 
@@ -15,7 +19,7 @@ String str;
 bool firstLoop = true;
 bool ledState = false;
 
-byte receivedBytes[40];
+byte payload[payloadLength] = {0};
 
 void setup() {
   //output LED pins
@@ -26,7 +30,7 @@ void setup() {
   delay(100);
   digitalWrite(13, LOW);
   
-  SerialUSB.begin(57600);
+  usbSerial.begin(57600);
   
   loraSerial.begin(57600);
   loraSerial.setTimeout(1000);
@@ -34,16 +38,15 @@ void setup() {
 
   aes.set_IV(my_iv);
 
-  SerialUSB.println("Initing LoRa");
+  usbSerial.println("Initing LoRa");
   resetLora();
   
-  SerialUSB.println("starting loop");
+  usbSerial.println("starting loop");
 }
 
 void loop() {
     if (firstLoop) {
-        byte bytes[2] = {0, 0}; // initial counter value
-        transmit(bytes);
+        transmit(payload);
     }
     //SerialUSB.println("waiting for a message");
     loraSerial.println("radio rx 0"); //wait for 60 seconds to receive
@@ -58,39 +61,38 @@ void loop() {
         }
         if ( str.indexOf("radio_rx") == 0 )
         {
-            SerialUSB.println(str);
+            usbSerial.println(str);
             str.remove(0,10);
             int strLen = str.length() + 1;
             char charArray[strLen];
             str.toCharArray(charArray, strLen);
+            byte receivedBytes[strLen];
 
-            for (int i=0; i<sizeof(charArray)/sizeof(charArray[0])/2; i++){
+            for (int i=0; i<strLen/2; i++){
                 receivedBytes[i] = combineNibbles(nibble(charArray[i*2]), nibble(charArray[i*2+1]));
             }
 
             byte iv [N_BLOCK] ;
-            byte decryptedData [sizeof(receivedBytes)/sizeof(receivedBytes[0])];
+            byte decryptedData [payloadLength];
 
             aes.get_IV(iv);
-            aes.do_aes_decrypt(receivedBytes, sizeof(receivedBytes)/sizeof(receivedBytes[0]), decryptedData, key, 128, iv);
+            aes.do_aes_decrypt(receivedBytes, strLen, decryptedData, key, 128, iv);
 
-            /*SerialUSB.print("decrypted: ");
-            for (int i=0; i<sizeof(decryptedData)/sizeof(decryptedData[0]); i++){
-                SerialUSB.print(decryptedData[i] >> 4, HEX);
-                SerialUSB.print(decryptedData[i] & 0x0f, HEX);
+            usbSerial.print("decrypted: ");
+            for (int i=0; i<payloadLength; i++){
+                usbSerial.print(decryptedData[i] >> 4, HEX);
+                usbSerial.print(decryptedData[i] & 0x0f, HEX);
             }
-            SerialUSB.println();*/
+            usbSerial.println();
 
             int value = (decryptedData[0] << 8) | decryptedData[1];
-
             value += 1;
-
             decryptedData[0] = (value >> 8) & 0xff;
             decryptedData[1] = value & 0xff;
             
-            SerialUSB.println();
-            SerialUSB.println("value: ");
-            SerialUSB.println(value);
+            usbSerial.println();
+            usbSerial.println("value: ");
+            usbSerial.println(value);
             
             delay(200);
             transmit(decryptedData);
@@ -98,12 +100,12 @@ void loop() {
         }
         else
         {
-            SerialUSB.println("Received nothing");
+            usbSerial.println("Received nothing");
         }
     }
     else
     {
-        SerialUSB.println("radio not going into receive mode");
+        usbSerial.println("radio not going into receive mode");
         delay(1000);
     }
     firstLoop = false;
@@ -114,9 +116,10 @@ byte combineNibbles(byte MSN, byte LSN){
 }
 
 void transmit(byte *bytes){
-    byte cipher [padedLength(sizeof(bytes)/sizeof(bytes[0]))];
+    int packetLength = payloadLength;
+    
     byte iv [N_BLOCK];
-    int packetLength = sizeof(bytes)/sizeof(bytes[0]);
+    byte cipher [padedLength(packetLength)];
 
     // encrypt data with AES
     aes.get_IV(iv);
@@ -181,67 +184,67 @@ int wait_for_ok()
 void resetLora(){
     loraSerial.println("sys reset");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
 
     loraSerial.println("sys get ver");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("mac pause");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set mod lora");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set freq 869100000");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set pwr 14");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set sf sf7");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set afcbw 41.7");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set rxbw 125");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set prlen 8");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set crc on");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set iqi off");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set cr 4/5");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set wdt 60000"); //disable for continuous reception
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set sync 12");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
     
     loraSerial.println("radio set bw 125");
     str = loraSerial.readStringUntil('\n');
-    SerialUSB.println(str);
+    usbSerial.println(str);
 }
 
 void toggle_led()
