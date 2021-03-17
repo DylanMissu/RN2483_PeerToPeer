@@ -12,8 +12,11 @@ AES aes ;
 
 // please change this to your AES-key or generate a random one with a true random number generator.
 // both devices mush have the same key.
-byte *key = (unsigned char*)"0123456789012345";
+byte key[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
 unsigned long long int my_iv = 0;
+
+byte address[1] = {0x00};
+byte targetAddress[1] = {0x00};
 
 String str;
 bool firstLoop = true;
@@ -63,40 +66,47 @@ void loop() {
         {
             usbSerial.println(str);
             str.remove(0,10);
-            int strLen = str.length() + 1;
-            char charArray[strLen];
-            str.toCharArray(charArray, strLen);
-            byte receivedBytes[strLen];
-
-            for (int i=0; i<strLen/2; i++){
-                receivedBytes[i] = combineNibbles(nibble(charArray[i*2]), nibble(charArray[i*2+1]));
-            }
-
-            byte iv [N_BLOCK] ;
-            byte decryptedData [payloadLength];
-
-            aes.get_IV(iv);
-            aes.do_aes_decrypt(receivedBytes, strLen, decryptedData, key, 128, iv);
-
-            usbSerial.print("decrypted: ");
-            for (int i=0; i<payloadLength; i++){
-                usbSerial.print(decryptedData[i] >> 4, HEX);
-                usbSerial.print(decryptedData[i] & 0x0f, HEX);
-            }
-            usbSerial.println();
-
-            int value = (decryptedData[0] << 8) | decryptedData[1];
-            value += 1;
-            decryptedData[0] = (value >> 8) & 0xff;
-            decryptedData[1] = value & 0xff;
+            byte packetAddress = combineNibbles(nibble(str[0]), nibble(str[1]));
+            if (packetAddress != address[0]) {
+                usbSerial.println("packet received but address does not match");
+                return;
+            } else {
+                str.remove(0,2);
+                int strLen = str.length() + 1;
+                char charArray[strLen];
+                str.toCharArray(charArray, strLen);
+                byte receivedBytes[strLen];
             
-            usbSerial.println();
-            usbSerial.println("value: ");
-            usbSerial.println(value);
+                for (int i=0; i<strLen/2; i++){
+                    receivedBytes[i] = combineNibbles(nibble(charArray[i*2]), nibble(charArray[i*2+1]));
+                }
             
-            delay(200);
-            transmit(decryptedData);
-            toggle_led();
+                byte iv [N_BLOCK] ;
+                byte decryptedData [payloadLength];
+    
+                aes.get_IV(iv);
+                aes.do_aes_decrypt(receivedBytes, strLen, decryptedData, key, 128, iv);
+    
+                usbSerial.print("decrypted: ");
+                for (int i=0; i<payloadLength; i++){
+                    usbSerial.print(decryptedData[i] >> 4, HEX);
+                    usbSerial.print(decryptedData[i] & 0x0f, HEX);
+                }
+                usbSerial.println();
+    
+                int value = (decryptedData[0] << 8) | decryptedData[1];
+                value += 1;
+                decryptedData[0] = (value >> 8) & 0xff;
+                decryptedData[1] = value & 0xff;
+                
+                usbSerial.println();
+                usbSerial.println("value: ");
+                usbSerial.println(value);
+                
+                delay(200);
+                transmit(decryptedData);
+                toggle_led();
+            }
         }
         else
         {
@@ -130,14 +140,33 @@ void transmit(byte *bytes){
     str = loraSerial.readStringUntil('\n');
     
     loraSerial.print("radio tx ");
+    
+    for (int i=0; i<sizeof(targetAddress); i++){
+        loraSerial.print(targetAddress[i] >> 4, HEX);
+        loraSerial.print(targetAddress[i] & 0x0f, HEX);
+    }
     for (int i=0; i<sizeof(cipher); i++){
         loraSerial.print(cipher[i] >> 4, HEX);
         loraSerial.print(cipher[i] & 0x0f, HEX);
     }
+    
     loraSerial.println();
     
     str = loraSerial.readStringUntil('\n');
     str = loraSerial.readStringUntil('\n');
+}
+
+byte *parseHexString(String string){
+    int strLen = string.length() + 1;
+    char charArray[strLen];
+    string.toCharArray(charArray, strLen);
+    byte bytes[strLen];
+
+    for (int i=0; i<strLen/2; i++){
+        bytes[i] = combineNibbles(nibble(charArray[i*2]), nibble(charArray[i*2+1]));
+    }
+
+    return bytes;
 }
 
 byte nibble(char c)
