@@ -1,11 +1,21 @@
+#include "AES.h"
+
 #define loraSerial Serial2
 
-String str;
+#define padedLength(bytes) bytes + N_BLOCK - bytes % N_BLOCK
 
+AES aes ;
+
+// please change this to your AES-key or generate a random one with a true random number generator.
+// both devices mush have the same key.
+byte *key = (unsigned char*)"0123456789012345";
+unsigned long long int my_iv = 0;
+
+String str;
 bool firstLoop = true;
 bool ledState = false;
 
-byte receivedBytes[10];
+byte receivedBytes[40];
 
 void setup() {
   //output LED pins
@@ -22,15 +32,17 @@ void setup() {
   loraSerial.setTimeout(1000);
   lora_autobaud();
 
+  aes.set_IV(my_iv);
+
   SerialUSB.println("Initing LoRa");
   resetLora();
-
+  
   SerialUSB.println("starting loop");
 }
 
 void loop() {
     if (firstLoop) {
-        byte bytes[2] = {0, 0};
+        byte bytes[2] = {0, 0}; // initial counter value
         transmit(bytes);
     }
     //SerialUSB.println("waiting for a message");
@@ -52,22 +64,36 @@ void loop() {
             char charArray[strLen];
             str.toCharArray(charArray, strLen);
 
-            receivedBytes[0] = combineNibbles(nibble(charArray[0]), nibble(charArray[1]));
-            receivedBytes[1] = combineNibbles(nibble(charArray[2]), nibble(charArray[3]));
+            for (int i=0; i<sizeof(charArray)/sizeof(charArray[0])/2; i++){
+                receivedBytes[i] = combineNibbles(nibble(charArray[i*2]), nibble(charArray[i*2+1]));
+            }
 
-            int value = (receivedBytes[0] << 8) | receivedBytes[1];
+            byte iv [N_BLOCK] ;
+            byte decryptedData [sizeof(receivedBytes)/sizeof(receivedBytes[0])];
+
+            aes.get_IV(iv);
+            aes.do_aes_decrypt(receivedBytes, sizeof(receivedBytes)/sizeof(receivedBytes[0]), decryptedData, key, 128, iv);
+
+            /*SerialUSB.print("decrypted: ");
+            for (int i=0; i<sizeof(decryptedData)/sizeof(decryptedData[0]); i++){
+                SerialUSB.print(decryptedData[i] >> 4, HEX);
+                SerialUSB.print(decryptedData[i] & 0x0f, HEX);
+            }
+            SerialUSB.println();*/
+
+            int value = (decryptedData[0] << 8) | decryptedData[1];
 
             value += 1;
 
-            receivedBytes[0] = (value >> 8) & 0xff;
-            receivedBytes[1] = value & 0xff;
+            decryptedData[0] = (value >> 8) & 0xff;
+            decryptedData[1] = value & 0xff;
             
             SerialUSB.println();
             SerialUSB.println("value: ");
             SerialUSB.println(value);
             
             delay(200);
-            transmit(receivedBytes);
+            transmit(decryptedData);
             toggle_led();
         }
         else
@@ -88,13 +114,22 @@ byte combineNibbles(byte MSN, byte LSN){
 }
 
 void transmit(byte *bytes){
+    byte cipher [padedLength(sizeof(bytes)/sizeof(bytes[0]))];
+    byte iv [N_BLOCK];
+    int packetLength = sizeof(bytes)/sizeof(bytes[0]);
+
+    // encrypt data with AES
+    aes.get_IV(iv);
+    aes.do_aes_encrypt(bytes, packetLength, cipher, key, 128, iv);
+
+    // send data
     loraSerial.println("mac pause");
     str = loraSerial.readStringUntil('\n');
-
+    
     loraSerial.print("radio tx ");
-    for (int i=0; i<sizeof(bytes); i++){
-        loraSerial.print(bytes[i] >> 4, HEX);
-        loraSerial.print(bytes[i] & 0x0f, HEX);
+    for (int i=0; i<sizeof(cipher); i++){
+        loraSerial.print(cipher[i] >> 4, HEX);
+        loraSerial.print(cipher[i] & 0x0f, HEX);
     }
     loraSerial.println();
     
