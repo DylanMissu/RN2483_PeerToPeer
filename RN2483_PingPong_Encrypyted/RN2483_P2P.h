@@ -11,11 +11,13 @@
 
 class RN2483_P2P {
     public:
-        void initLoRa(Stream &usbSerial, Stream &loraSerial);
-        void receiveMessage(Stream &usbSerial,Stream &loraSerial, void (*handleMessage)(const byte *payload));
-        void transmitMessage(Stream &usbSerial,Stream &loraSerial, byte *bytes, byte *targetAddress);
+        RN2483_P2P(Stream &usbSerial, Stream &loraSerial);
+        void initLoRa();
+        bool receiveMessage(void (*handleMessage)(const byte *payload));
+        void transmitMessage(byte *bytes, const byte *targetAddress);
         void setPayloadLength(int Length);
-        void setAesKey(byte AESKey[AES_BITS/8]);
+        void setAesKey(const byte AESKey[AES_BITS/8]);
+        void setAddress(const byte address[1]);
 
     private:
         byte nibble(char c);
@@ -23,7 +25,9 @@ class RN2483_P2P {
     private:
         String str = "";
         int payloadLength = 10;
-        byte deviceAddress[1] = {0x00};
+        byte deviceAddress[1] = {0x01};
+        Stream *loraSerial;
+        Stream *usbSerial;
 
     private:
         AES aes;
