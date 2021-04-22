@@ -19,8 +19,9 @@ void RN2483_P2P::initLoRa(){
 
 bool RN2483_P2P::receiveMessage(void (*handleMessage)(const byte *payload)){
     loraSerial->println("radio rx 0"); //wait for 60 seconds to receive
-
+    
     str = loraSerial->readStringUntil('\n');
+
     if ( str.indexOf("ok") == 0 )
     {
         str = String("");
@@ -72,6 +73,7 @@ bool RN2483_P2P::receiveMessage(void (*handleMessage)(const byte *payload)){
     else
     {
         usbSerial->println("radio not going into receive mode");
+        //initLoRa();
         return false;
         delay(1000);
     }

@@ -47,26 +47,7 @@ void loop() {
         }
         if ( str.indexOf("radio_rx") == 0 )
         {
-            usbSerial.println(str);
-            str.remove(0,10);
-            int strLen = str.length() + 1;
-            char charArray[strLen];
-            str.toCharArray(charArray, strLen);
-
-            receivedBytes[0] = combineNibbles(nibble(charArray[0]), nibble(charArray[1]));
-            receivedBytes[1] = combineNibbles(nibble(charArray[2]), nibble(charArray[3]));
-
-            int value = (receivedBytes[0] << 8) | receivedBytes[1];
-
-            value += 1;
-
-            receivedBytes[0] = (value >> 8) & 0xff;
-            receivedBytes[1] = value & 0xff;
-            
-            usbSerial.println();
-            usbSerial.println("value: ");
-            usbSerial.println(value);
-            
+            usbSerial.println("received");
             delay(200);
             transmit(receivedBytes);
             toggle_led();
