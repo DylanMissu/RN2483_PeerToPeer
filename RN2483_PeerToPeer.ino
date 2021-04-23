@@ -22,7 +22,7 @@ const byte key[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09
 // set the address of the device where you want te send a packet to
 const byte targetAddress[1] = {0x00};
 
-// the adress of this device
+// the adress of this device (The adresses can be the same. It won't loop back)
 const byte deviceAddress[1] = {0x00};
 
 bool ledState = false;
