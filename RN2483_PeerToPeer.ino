@@ -9,8 +9,15 @@
 #define btSerial                Serial
 
 #define ledPin                  9
+#define CurrentSensePin         A1
+#define VoltageSensePin         A0
+
 #define DHT11PIN                4
 #define DHTTYPE                 DHT11
+
+#define R_Shunt                 0.5     //Ohms
+#define R1                      100000  //Ohms
+#define R2                      8200    //Ohms
 
 DHT dht(DHT11PIN, DHTTYPE);
 RN2483_P2P peerToPeer(usbSerial, loraSerial);
@@ -66,19 +73,24 @@ void handleMessage(const byte *payload)
     usbSerial.println();
     
     usbSerial.print("Temperature: ");
-    usbSerial.println(temp);
+    usbSerial.print(temp);
+    usbSerial.println("°C");
     
     usbSerial.print("Humitity: ");
-    usbSerial.println(humid);
+    usbSerial.print(humid);
+    usbSerial.println("%");
     
     usbSerial.print("Voltage: ");
-    usbSerial.println(volt);
+    usbSerial.print(volt);
+    usbSerial.println("V");
     
     usbSerial.print("Amps: ");
-    usbSerial.println(amp);
+    usbSerial.print(amp);
+    usbSerial.println("A");
     
     usbSerial.print("Power: ");
-    usbSerial.println(power);
+    usbSerial.print(power);
+    usbSerial.println("W");
 
     usbSerial.println();
 
@@ -153,7 +165,7 @@ void transmit() {
     
     SerialUSB.println();
 
-    // add values to payload for transmission through lorawan
+    // add values to payload for transmission through lora
     tempPayload[0] = (int)(volt*amp*100)>>8;
     tempPayload[1] = (int)(volt*amp*100)&0x00ff;
     
