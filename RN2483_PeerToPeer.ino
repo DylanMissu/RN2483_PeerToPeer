@@ -54,13 +54,16 @@ void setup() {
 
 void handleMessage(const byte *payload)
 {
-    usbSerial.println();
+    // pulse status led
+    pulse();
 
     double temp = ((payload[4]<<8)|(payload[5]))/100.0;
     double humid = ((payload[2]<<8)|(payload[3]))/100.0;
     double volt = ((payload[4]<<8)|(payload[5]))/100.0;
     double amp = ((payload[2]<<8)|(payload[3]))/100.0;
     double power = ((payload[0]<<8)|(payload[1]))/100.0;
+
+    usbSerial.println();
     
     usbSerial.print("Temperature: ");
     usbSerial.println(temp);
@@ -79,23 +82,42 @@ void handleMessage(const byte *payload)
 
     usbSerial.println();
 
-    // pulse status led
-    pulse();
+    btSerial.print("Temperature: ");
+    btSerial.print(temp);
+    btSerial.println("°C");
+    
+    btSerial.print("Humitity: ");
+    btSerial.print(humid);
+    btSerial.println("%");
+    
+    btSerial.print("Voltage: ");
+    btSerial.print(volt);
+    btSerial.println("V");
+    
+    btSerial.print("Amps: ");
+    btSerial.print(amp);
+    btSerial.println("A");
+    
+    btSerial.print("Power: ");
+    btSerial.print(power);
+    btSerial.println("W");
+
+    btSerial.println();
 }
 
 void loop() 
 {
     // uncomment for the transmitter
-    transmit(); 
+    //transmit(); 
 
     // uncomment for the receiver
-    //stat = peerToPeer.receiveMessage(handleMessage);
+    stat = peerToPeer.receiveMessage(handleMessage);
 }
 
 void transmit() {
     byte tempPayload[10] = {0};    
 
-    // take average values over 1 second
+    // take average values over 1s each 100ms
     int sumVolt = 0;
     int sumAmp = 0;
     double sumTemp = 0;
