@@ -69,11 +69,23 @@ void handleMessage(const byte *payload)
     // pulse status led
     pulse();
 
-    double temp = ((payload[4]<<8)|(payload[5]))/100.0;
-    double humid = ((payload[2]<<8)|(payload[3]))/100.0;
+    double temp = ((payload[8]<<8)|(payload[9]))/100.0;
+    double humid = ((payload[6]<<8)|(payload[7]))/100.0;
     double volt = ((payload[4]<<8)|(payload[5]))/100.0;
     double amp = ((payload[2]<<8)|(payload[3]))/100.0;
     double power = ((payload[0]<<8)|(payload[1]))/100.0;
+
+    // Printing payload to btSerial
+    usbSerial.print("Payload: ");
+    for (int i=0; i < 10; i++){
+        btSerial.print(payload[i] >> 4, HEX);
+        btSerial.print(payload[i] & 0x0f, HEX);
+        usbSerial.print(payload[i] >> 4, HEX);
+        usbSerial.print(payload[i] & 0x0f, HEX);
+    }
+    
+    btSerial.println();
+    usbSerial.println();
 
     // print to usb serial
     usbSerial.println();
@@ -99,38 +111,15 @@ void handleMessage(const byte *payload)
     usbSerial.println("W");
 
     usbSerial.println();
-
-    // print to bluetooth serial
-    btSerial.print("Temperature: ");
-    btSerial.print(temp);
-    btSerial.println("°C");
-    
-    btSerial.print("Humitity: ");
-    btSerial.print(humid);
-    btSerial.println("%");
-    
-    btSerial.print("Voltage: ");
-    btSerial.print(volt);
-    btSerial.println("V");
-    
-    btSerial.print("Amps: ");
-    btSerial.print(amp);
-    btSerial.println("A");
-    
-    btSerial.print("Power: ");
-    btSerial.print(power);
-    btSerial.println("W");
-
-    btSerial.println();
 }
 
 void loop() 
 {
     // uncomment for the transmitter
-    //transmit(); 
+    transmit(); 
 
     // uncomment for the receiver
-    stat = peerToPeer.receiveMessage(handleMessage);
+    //stat = peerToPeer.receiveMessage(handleMessage);
 }
 
 void transmit() {
@@ -142,18 +131,18 @@ void transmit() {
     double sumTemp = 0;
     double sumHumid = 0;
     
-    for (int i=0; i<SAMPLE_TIME/SAMPLE_INTERVAL; i++) {        
+    for (int i=0; i<10; i++) {        
         sumTemp += (double)dht.readTemperature();
         sumHumid += (double)dht.readHumidity();
         sumAmp += analogRead(A1);
         sumVolt += analogRead(A0);
-        delay(SAMPLE_INTERVAL);
+        delay(100);
     }
 
-    double volt = (sumVolt/SAMPLE_TIME/SAMPLE_INTERVAL)*(SUPPLY_VOLTAGE / pow(2,ADC_RESOLUTION))*(1+(R1/R2));
-    double amp = (sumAmp/SAMPLE_TIME/SAMPLE_INTERVAL)*(SUPPLY_VOLTAGE / pow(2,ADC_RESOLUTION))/R_Shunt;
-    double temp = sumTemp/SAMPLE_TIME/SAMPLE_INTERVAL;
-    double humid = sumHumid/SAMPLE_TIME/SAMPLE_INTERVAL;
+    double volt = (sumVolt/10)*(SUPPLY_VOLTAGE / pow(2,ADC_RESOLUTION))*(1+(R1/R2));
+    double amp = (sumAmp/10)*(SUPPLY_VOLTAGE / pow(2,ADC_RESOLUTION))/R_Shunt;
+    double temp = sumTemp/10;
+    double humid = sumHumid/10;
 
     // display values on serial moditor
     SerialUSB.print("Temperature: ");
@@ -188,6 +177,13 @@ void transmit() {
     
     tempPayload[8] = (int)(humid*100)>>8;
     tempPayload[9] = (int)(humid*100)&0x00ff;
+
+    for (int i=0; i<10; i++){
+        SerialUSB.print(tempPayload[i] >> 4, HEX);
+        SerialUSB.print(tempPayload[i] & 0x0f, HEX);
+    }
+
+    SerialUSB.println();
 
     // transmit payload
     peerToPeer.transmitMessage(tempPayload, targetAddress);
