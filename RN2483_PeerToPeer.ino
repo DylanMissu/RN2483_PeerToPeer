@@ -8,27 +8,23 @@
 #define usbSerial               SerialUSB
 #define btSerial                Serial
 
-#define ledPin                  9
-#define CurrentSensePin         A1
-#define VoltageSensePin         A0
+#define LED_PIN                 9
+#define CURRENT_PIN             A1
+#define VOLTAGE_PIN             A0
 
 #define DHT11PIN                4
 #define DHTTYPE                 DHT11
 
-#define R_Shunt                 0.5     //Ohms
+#define R_SHUNT                 0.5     //Ohms
 #define R1                      100000  //Ohms
 #define R2                      8200    //Ohms
 
 #define ADC_RESOLUTION          12      //Bits
 #define SUPPLY_VOLTAGE          3.3     //Volt
-#define SAMPLE_TIME             1000    //ms
 #define SAMPLE_INTERVAL         100     //ms
+#define N_SAMPLES               10
 
-DHT dht(DHT11PIN, DHTTYPE);
-RN2483_P2P peerToPeer(usbSerial, loraSerial);
-
-// please change this to your custom AES-key or generate a random one with a true random number generator.
-// this is used for encryption, so both devices mush have the same key.
+// Both devices mush have the same key.
 const byte key[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
 
 // set the address of the device where you want te send a packet to
@@ -40,10 +36,13 @@ const byte deviceAddress[1] = {0x00};
 bool ledState = false;
 bool stat = true;
 
+DHT dht(DHT11PIN, DHTTYPE);
+RN2483_P2P peerToPeer(usbSerial, loraSerial);
+
 void setup() {
-    pinMode(A0, INPUT);
-    pinMode(A1, INPUT);
-    pinMode(ledPin, OUTPUT);
+    pinMode(VOLTAGE_PIN, INPUT);
+    pinMode(CURRENT_PIN, INPUT);
+    pinMode(LED_PIN, OUTPUT);
     
     pulse();
 
@@ -64,13 +63,23 @@ void setup() {
     dht.begin();
 }
 
+
+void loop() 
+{
+    // uncomment for the transmitter
+    //transmit(); 
+
+    // uncomment for the receiver
+    stat = peerToPeer.receiveMessage(handleMessage);
+}
+
 void handleMessage(const byte *payload)
 {
     // pulse status led
     pulse();
 
-    double temp = ((payload[8]<<8)|(payload[9]))/100.0;
-    double humid = ((payload[6]<<8)|(payload[7]))/100.0;
+    double humid = ((payload[8]<<8)|(payload[9]))/100.0;
+    double temp = ((payload[6]<<8)|(payload[7]))/100.0;
     double volt = ((payload[4]<<8)|(payload[5]))/100.0;
     double amp = ((payload[2]<<8)|(payload[3]))/100.0;
     double power = ((payload[0]<<8)|(payload[1]))/100.0;
@@ -113,54 +122,44 @@ void handleMessage(const byte *payload)
     usbSerial.println();
 }
 
-void loop() 
-{
-    // uncomment for the transmitter
-    transmit(); 
-
-    // uncomment for the receiver
-    //stat = peerToPeer.receiveMessage(handleMessage);
-}
-
 void transmit() {
     byte tempPayload[10] = {0};    
 
-    // take average values over 1s each 100ms
     int sumVolt = 0;
     int sumAmp = 0;
     double sumTemp = 0;
     double sumHumid = 0;
     
-    for (int i=0; i<10; i++) {        
-        sumTemp += (double)dht.readTemperature();
-        sumHumid += (double)dht.readHumidity();
-        sumAmp += analogRead(A1);
-        sumVolt += analogRead(A0);
-        delay(100);
+    for (int i=0; i<N_SAMPLES; i++) {        
+        sumTemp += dht.readTemperature();
+        sumHumid += dht.readHumidity();
+        sumAmp += analogRead(CURRENT_PIN);
+        sumVolt += analogRead(VOLTAGE_PIN);
+        delay(SAMPLE_INTERVAL);
     }
 
-    double volt = (sumVolt/10)*(SUPPLY_VOLTAGE / pow(2,ADC_RESOLUTION))*(1+(R1/R2));
-    double amp = (sumAmp/10)*(SUPPLY_VOLTAGE / pow(2,ADC_RESOLUTION))/R_Shunt;
-    double temp = sumTemp/10;
-    double humid = sumHumid/10;
+    double volt = (sumVolt/N_SAMPLES)*(SUPPLY_VOLTAGE / pow(2,ADC_RESOLUTION))*(1+(R1/R2)); 
+    double amp = (sumAmp/N_SAMPLES)*(SUPPLY_VOLTAGE / pow(2,ADC_RESOLUTION))/R_SHUNT;
+    double temp = sumTemp/N_SAMPLES;
+    double humid = sumHumid/N_SAMPLES;
 
     // display values on serial moditor
-    SerialUSB.print("Temperature: ");
-    SerialUSB.println(temp);
+    usbSerial.print("Temperature: ");
+    usbSerial.println(temp);
     
-    SerialUSB.print("Humidity: ");
-    SerialUSB.println(humid);
+    usbSerial.print("Humidity: ");
+    usbSerial.println(humid);
 
-    SerialUSB.print("Volt: ");
-    SerialUSB.println(volt);
+    usbSerial.print("Volt: ");
+    usbSerial.println(volt);
     
-    SerialUSB.print("Amp: ");
-    SerialUSB.println(amp);
+    usbSerial.print("Amp: ");
+    usbSerial.println(amp);
     
-    SerialUSB.print("Pow: ");
-    SerialUSB.println(volt*amp);
+    usbSerial.print("Pow: ");
+    usbSerial.println(volt*amp);
     
-    SerialUSB.println();
+    usbSerial.println();
 
     // add values to payload for transmission through lora
     tempPayload[0] = (int)(volt*amp*100)>>8;
@@ -179,11 +178,11 @@ void transmit() {
     tempPayload[9] = (int)(humid*100)&0x00ff;
 
     for (int i=0; i<10; i++){
-        SerialUSB.print(tempPayload[i] >> 4, HEX);
-        SerialUSB.print(tempPayload[i] & 0x0f, HEX);
+        usbSerial.print(tempPayload[i] >> 4, HEX);
+        usbSerial.print(tempPayload[i] & 0x0f, HEX);
     }
 
-    SerialUSB.println();
+    usbSerial.println();
 
     // transmit payload
     peerToPeer.transmitMessage(tempPayload, targetAddress);
@@ -208,7 +207,7 @@ void lora_autobaud()
 
 void pulse()
 {
-    digitalWrite(ledPin, HIGH);
-    delay(100);
-    digitalWrite(ledPin, LOW);
+    digitalWrite(LED_PIN, HIGH);
+    delay(50);
+    digitalWrite(LED_PIN, LOW);
 }
