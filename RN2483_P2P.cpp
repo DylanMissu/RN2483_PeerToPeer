@@ -24,51 +24,7 @@ bool RN2483_P2P::receiveMessage(void (*handleMessage)(const byte *payload)){
 
     if ( str.indexOf("ok") == 0 )
     {
-        str = String("");
-        while(str=="")
-        {
-            str = loraSerial->readStringUntil('\n');
-        }
-        if ( str.indexOf("radio_rx") == 0 )
-        {
-            usbSerial->println(str);
-            str.remove(0,10);
-            byte packetAddress = combineNibbles(nibble(str[0]), nibble(str[1]));
-            if (packetAddress != deviceAddress[0]) {
-                usbSerial->println("packet received but address does not match");
-            } else {
-                str.remove(0,2);
-                int strLen = str.length() + 1;
-                char charArray[strLen];
-                str.toCharArray(charArray, strLen);
-                byte receivedBytes[strLen];
-            
-                for (int i=0; i<strLen/2; i++){
-                    receivedBytes[i] = combineNibbles(nibble(charArray[i*2]), nibble(charArray[i*2+1]));
-                }
-            
-                byte iv [N_BLOCK] ;
-                byte decryptedData [payloadLength];
-    
-                aes.get_IV(iv);
-                aes.do_aes_decrypt(receivedBytes, strLen, decryptedData, key, 128, iv);
-    
-                usbSerial->print("decrypted: ");
-                for (int i=0; i<payloadLength; i++){
-                    usbSerial->print(decryptedData[i] >> 4, HEX);
-                    usbSerial->print(decryptedData[i] & 0x0f, HEX);
-                }
-                usbSerial->println();
-
-                (*handleMessage)(decryptedData);
-            }
-            return true;
-        }
-        else
-        {
-            usbSerial->println("Received nothing");
-            return false;
-        }
+        handleIncommingMessage(handleMessage);
     }
     else
     {
@@ -78,6 +34,88 @@ bool RN2483_P2P::receiveMessage(void (*handleMessage)(const byte *payload)){
         delay(1000);
     }
 };
+
+int RN2483_P2P::handleIncommingMessage(void (*handleMessage)(const byte *payload)){
+    str = String("");
+    while(str=="")
+    {
+        str = loraSerial->readStringUntil('\n');
+    }
+    if ( str.indexOf("radio_rx") == 0 )
+    {
+        // print received cipher to terminal
+        usbSerial->println(str); 
+
+        // remove "radio_rx " from response
+        str.remove(0,10);
+
+        int packetLength = (str.length()-1)/2;
+
+        byte packet[32] = {0x00};
+        hexStringToByteArray(str, packet, packetLength);
+
+        bool addressCorrect = false;
+        for (int i=0; i<ADRESS_SIZE; i++){
+            addressCorrect += (packet[i] == deviceAddress[i]);
+        }
+        
+        if (!addressCorrect) {
+            usbSerial->println("packet received but address does not match");
+        } else {
+            decryptMessage(packet, handleMessage, packetLength);
+        }
+        return 0;
+    }
+    else
+    {
+        usbSerial->println("Received nothing");
+        return -1;
+    }
+}
+
+void RN2483_P2P::hexStringToByteArray(String hex, byte *decoded, int numBytes){
+    int nibbles = hex.length() - 1;
+    int bytes = 0;
+    
+    if (nibbles%2 == 1){
+        decoded = {0x00};
+    }
+
+    for (int i=0; i<nibbles; i++){
+        if (!isHexadecimalDigit(hex[i])){
+            decoded = {0x00};
+        }
+    }
+
+    for (int i=0; i<numBytes; i++){
+        decoded[i] = combineNibbles(nibble(hex[i*2]), nibble(hex[i*2+1]));
+    }
+}
+
+void RN2483_P2P::decryptMessage(const byte *packet, void (*handleMessage)(const byte *payload), int packetLength){
+
+    int cipherLength = packetLength - ADRESS_SIZE;
+    byte cipher[cipherLength] = {0x00};
+
+    for (int i=0; i<cipherLength; i++){
+        cipher[i] = packet[i+ADRESS_SIZE];
+    }
+
+    byte iv [N_BLOCK];
+    byte decryptedData [payloadLength];
+
+    aes.get_IV(iv);
+    aes.do_aes_decrypt(cipher, cipherLength, decryptedData, key, 128, iv);
+
+    usbSerial->print("decrypted: ");
+    for (int i=0; i<payloadLength; i++){
+        usbSerial->print(decryptedData[i] >> 4, HEX);
+        usbSerial->print(decryptedData[i] & 0x0f, HEX);
+    }
+    usbSerial->println();
+
+    (*handleMessage)(decryptedData);
+}
 
 byte RN2483_P2P::nibble(char c)
 {
@@ -103,13 +141,13 @@ void RN2483_P2P::setAesKey(const byte AESKey[AES_BITS/8]){
     }
 };
 
-void RN2483_P2P::setAddress(const byte address[1]){
-    for (int i=0; i<sizeof(address)/sizeof(address[0]); i++){
+void RN2483_P2P::setAddress(const byte address[ADRESS_SIZE]){
+    for (int i=0; i<ADRESS_SIZE; i++){
         deviceAddress[i] = address[i];
     }
 };
 
-void RN2483_P2P::transmitMessage(byte *bytes,const byte targetAddress[1]){
+void RN2483_P2P::transmitMessage(byte *bytes,const byte targetAddress[ADRESS_SIZE]){
     int packetLength = payloadLength;
     
     byte iv [N_BLOCK];
@@ -125,7 +163,7 @@ void RN2483_P2P::transmitMessage(byte *bytes,const byte targetAddress[1]){
     
     loraSerial->print("radio tx ");
     
-    for (int i=0; i<1; i++){
+    for (int i=0; i<ADRESS_SIZE; i++){
         loraSerial->print(targetAddress[i] >> 4, HEX);
         loraSerial->print(targetAddress[i] & 0x0f, HEX);
     }

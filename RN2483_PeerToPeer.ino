@@ -8,7 +8,7 @@
 #define usbSerial               SerialUSB
 #define btSerial                Serial
 
-#define LED_PIN                 9
+#define LED_PIN                 13
 #define CURRENT_PIN             A1
 #define VOLTAGE_PIN             A0
 
@@ -24,7 +24,7 @@
 #define SAMPLE_INTERVAL         100     //ms
 #define N_SAMPLES               10
 
-// Both devices mush have the same key.
+// Both devices mush have the same AES-key.
 const byte key[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
 
 // set the address of the device where you want te send a packet to
@@ -73,32 +73,13 @@ void loop()
     stat = peerToPeer.receiveMessage(handleMessage);
 }
 
-void handleMessage(const byte *payload)
-{
-    // pulse status led
-    pulse();
-
+void printPayload(const byte *payload){
     double humid = ((payload[8]<<8)|(payload[9]))/100.0;
     double temp = ((payload[6]<<8)|(payload[7]))/100.0;
     double volt = ((payload[4]<<8)|(payload[5]))/100.0;
     double amp = ((payload[2]<<8)|(payload[3]))/100.0;
     double power = ((payload[0]<<8)|(payload[1]))/100.0;
 
-    // Printing payload to btSerial
-    usbSerial.print("Payload: ");
-    for (int i=0; i < 10; i++){
-        btSerial.print(payload[i] >> 4, HEX);
-        btSerial.print(payload[i] & 0x0f, HEX);
-        usbSerial.print(payload[i] >> 4, HEX);
-        usbSerial.print(payload[i] & 0x0f, HEX);
-    }
-    
-    btSerial.println();
-    usbSerial.println();
-
-    // print to usb serial
-    usbSerial.println();
-    
     usbSerial.print("Temperature: ");
     usbSerial.print(temp);
     usbSerial.println("°C");
@@ -122,6 +103,34 @@ void handleMessage(const byte *payload)
     usbSerial.println();
 }
 
+void handleMessage(const byte *payload)
+{
+    // pulse status led
+    pulse();
+
+    // decode the payload into usable values
+    double humid = ((payload[8]<<8)|(payload[9]))/100.0;
+    double temp = ((payload[6]<<8)|(payload[7]))/100.0;
+    double volt = ((payload[4]<<8)|(payload[5]))/100.0;
+    double amp = ((payload[2]<<8)|(payload[3]))/100.0;
+    double power = ((payload[0]<<8)|(payload[1]))/100.0;
+
+    // Printing payload to btSerial and usbSerial
+    usbSerial.print("Payload: ");
+    for (int i=0; i < 10; i++){
+        btSerial.print(payload[i] >> 4, HEX);
+        btSerial.print(payload[i] & 0x0f, HEX);
+        usbSerial.print(payload[i] >> 4, HEX);
+        usbSerial.print(payload[i] & 0x0f, HEX);
+    }
+    
+    btSerial.println();
+    usbSerial.println();
+
+    // print to usb serial
+    printPayload(payload);
+}
+
 void transmit() {
     byte tempPayload[10] = {0};    
 
@@ -143,24 +152,6 @@ void transmit() {
     double temp = sumTemp/N_SAMPLES;
     double humid = sumHumid/N_SAMPLES;
 
-    // display values on serial moditor
-    usbSerial.print("Temperature: ");
-    usbSerial.println(temp);
-    
-    usbSerial.print("Humidity: ");
-    usbSerial.println(humid);
-
-    usbSerial.print("Volt: ");
-    usbSerial.println(volt);
-    
-    usbSerial.print("Amp: ");
-    usbSerial.println(amp);
-    
-    usbSerial.print("Pow: ");
-    usbSerial.println(volt*amp);
-    
-    usbSerial.println();
-
     // add values to payload for transmission through lora
     tempPayload[0] = (int)(volt*amp*100)>>8;
     tempPayload[1] = (int)(volt*amp*100)&0x00ff;
@@ -177,14 +168,18 @@ void transmit() {
     tempPayload[8] = (int)(humid*100)>>8;
     tempPayload[9] = (int)(humid*100)&0x00ff;
 
+    usbSerial.println("Payload: ");
     for (int i=0; i<10; i++){
         usbSerial.print(tempPayload[i] >> 4, HEX);
         usbSerial.print(tempPayload[i] & 0x0f, HEX);
     }
-
     usbSerial.println();
 
-    // transmit payload
+    usbSerial.println("Decoded: ");
+    printPayload(tempPayload);
+    usbSerial.println();
+
+    // transmit payload through LoRa
     peerToPeer.transmitMessage(tempPayload, targetAddress);
 
     // pulse led to display that the data has been sent

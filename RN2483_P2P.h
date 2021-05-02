@@ -7,7 +7,8 @@
 #define padedLength(bytes)          bytes + N_BLOCK - bytes % N_BLOCK
 #define combineNibbles(MSN, LSN)    (MSN << 4) | (LSN)
 
-#define AES_BITS 128
+#define AES_BITS        128
+#define ADRESS_SIZE     1
 
 class RN2483_P2P {
     public:
@@ -17,15 +18,18 @@ class RN2483_P2P {
         void transmitMessage(byte *bytes, const byte *targetAddress);
         void setPayloadLength(int Length);
         void setAesKey(const byte AESKey[AES_BITS/8]);
-        void setAddress(const byte address[1]);
+        void setAddress(const byte address[ADRESS_SIZE]);
 
     private:
         byte nibble(char c);
+        void decryptMessage(const byte *packet, void (*handleMessage)(const byte *payload), int packetLength);
+        void hexStringToByteArray(String hex, byte *decoded, int numBytes);
+        int handleIncommingMessage(void (*handleMessage)(const byte *payload));
 
     private:
         String str = "";
         int payloadLength = 10;
-        byte deviceAddress[1] = {0x01};
+        byte deviceAddress[ADRESS_SIZE] = {0x00};
         Stream *loraSerial;
         Stream *usbSerial;
 
