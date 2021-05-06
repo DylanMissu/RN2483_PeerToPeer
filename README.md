@@ -6,6 +6,14 @@
  
  This library exploits the limited peer to peer possibilities of the RN2483 to implement secure communication with another RN2483. The connection is stateless so you can broadcast a packet and the device with the correct key and adress will decode and handle the packet.
  
+ This library is still in early development. Feel free to add issues or create pull requests if you want to see features added.
+ 
+ planned features:
+ * CRC
+ * Handshaking
+ * Compatibility with other lora modems
+ * replay attack prevention
+ 
  Here is an example sketch:
  
  ```C++
@@ -74,7 +82,7 @@ void lora_autobaud()
     }
 }
  ```
+ The code where this library is build upon is [this Code ecample.](https://github.com/jpmeijers/RN2483-Arduino-p2p-examples) <br>
+ The encryption library used is [this AES library.](https://github.com/bigfighter/arduino-AES)
  
- The encryption library used is (this AES library)[https://github.com/bigfighter/arduino-AES]
- 
- This code was tested on a RN2483A with firmware version 1.0.4.
+ This code was tested on a SODAQ ExpLoRer withe an RN2483A with firmware version 1.0.4 but should work on all boards with the RN2483.
