@@ -60,13 +60,6 @@ void handleMessage(const byte *payload)
     }
 }
 
-void transmit() {
-    
-
-    // transmit payload through LoRa
-    peerToPeer.transmitMessage(tempPayload, targetAddress);
-}
-
 void lora_autobaud()
 {
     String response = "";
