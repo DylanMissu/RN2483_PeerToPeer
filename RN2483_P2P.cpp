@@ -49,16 +49,18 @@ int RN2483_P2P::handleIncommingMessage(void (*handleMessage)(const byte *payload
         // remove "radio_rx " from response
         str.remove(0,10);
 
+        // convert received hex string into a byte array
         int packetLength = (str.length()-1)/2;
-
-        byte packet[32] = {0x00};
+        byte packet[packetLength];
         hexStringToByteArray(str, packet, packetLength);
 
+        // check if the address is correct
         bool addressCorrect = false;
         for (int i=0; i<ADRESS_SIZE; i++){
             addressCorrect += (packet[i] == deviceAddress[i]);
         }
-        
+
+        // decrypt message if the adress is correct
         if (!addressCorrect) {
             usbSerial->println("packet received but address does not match");
         } else {
@@ -92,12 +94,10 @@ void RN2483_P2P::hexStringToByteArray(String hex, byte *decoded, int numBytes){
     }
 }
 
-void RN2483_P2P::decryptMessage(const byte *packet, void (*handleMessage)(const byte *payload), int packetLength){
+void RN2483_P2P::decryptMessage(const byte *packet, void (*handleMessage)(const byte *payload), const int packetLength){
+    byte cipher[packetLength - ADRESS_SIZE];
 
-    int cipherLength = packetLength - ADRESS_SIZE;
-    byte cipher[cipherLength] = {0x00};
-
-    for (int i=0; i<cipherLength; i++){
+    for (int i=0; i<packetLength - ADRESS_SIZE; i++){
         cipher[i] = packet[i+ADRESS_SIZE];
     }
 
@@ -105,7 +105,7 @@ void RN2483_P2P::decryptMessage(const byte *packet, void (*handleMessage)(const 
     byte decryptedData [payloadLength];
 
     aes.get_IV(iv);
-    aes.do_aes_decrypt(cipher, cipherLength, decryptedData, key, 128, iv);
+    aes.do_aes_decrypt(cipher, packetLength - ADRESS_SIZE, decryptedData, key, 128, iv);
 
     usbSerial->print("decrypted: ");
     for (int i=0; i<payloadLength; i++){

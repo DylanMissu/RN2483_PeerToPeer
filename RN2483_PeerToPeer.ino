@@ -70,7 +70,7 @@ void loop()
     //transmit(); 
 
     // uncomment for the receiver
-    stat = peerToPeer.receiveMessage(handleMessage);
+    peerToPeer.receiveMessage(handleMessage);
 }
 
 void printPayload(const byte *payload){
@@ -79,6 +79,13 @@ void printPayload(const byte *payload){
     double volt = ((payload[4]<<8)|(payload[5]))/100.0;
     double amp = ((payload[2]<<8)|(payload[3]))/100.0;
     double power = ((payload[0]<<8)|(payload[1]))/100.0;
+
+    usbSerial.print("Payload: ");
+    for (int i=0; i<10; i++){
+        usbSerial.print(payload[i] >> 4, HEX);
+        usbSerial.print(payload[i] & 0x0f, HEX);
+    }
+    usbSerial.println();
 
     usbSerial.print("Temperature: ");
     usbSerial.print(temp);
@@ -120,12 +127,9 @@ void handleMessage(const byte *payload)
     for (int i=0; i < 10; i++){
         btSerial.print(payload[i] >> 4, HEX);
         btSerial.print(payload[i] & 0x0f, HEX);
-        usbSerial.print(payload[i] >> 4, HEX);
-        usbSerial.print(payload[i] & 0x0f, HEX);
     }
     
     btSerial.println();
-    usbSerial.println();
 
     // print to usb serial
     printPayload(payload);
@@ -167,13 +171,6 @@ void transmit() {
     
     tempPayload[8] = (int)(humid*100)>>8;
     tempPayload[9] = (int)(humid*100)&0x00ff;
-
-    usbSerial.println("Payload: ");
-    for (int i=0; i<10; i++){
-        usbSerial.print(tempPayload[i] >> 4, HEX);
-        usbSerial.print(tempPayload[i] & 0x0f, HEX);
-    }
-    usbSerial.println();
 
     usbSerial.println("Decoded: ");
     printPayload(tempPayload);
