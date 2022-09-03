@@ -13,7 +13,6 @@ void RN2483_P2P::initLoRa(){
         str = loraSerial->readStringUntil('\n');
         usbSerial->println(str);
     }
-
     aes.set_IV(my_iv);
 };
 

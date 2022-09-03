@@ -28,7 +28,7 @@ class RN2483_P2P {
 
     private:
         String str = "";
-        int payloadLength = 10;
+        int payloadLength = 2;
         byte deviceAddress[ADRESS_SIZE] = {0x00};
         Stream *loraSerial;
         Stream *usbSerial;
